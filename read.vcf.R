@@ -1,8 +1,6 @@
 library(pegas)
 source("getVCFinfo.R")
 
-##file <- titi
-
 read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 {
     f <- .VCFconnection(file)
@@ -11,27 +9,24 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
     if (is.null(which.loci)) which.loci <- from:to
     nLoci <- length(which.loci)
 
-    if (GZ) open(f)
-
     meta <- .getMETAvcf(readBin(f, "raw", 1e5))
     labs <- strsplit(meta$LABELS, "\t")[[1]]
     nCol <- length(labs)
     n <- nCol - 9L
     hop <- 2L * nCol - 1L
 
-    cache <- ls(env = .cacheVCF)
-    if (file %in% cache) {
-        cache <- get(file, env = .cacheVCF)
-    } else {
-        cat("Scanning file for positions...")
-        info <- VCFlociinfo(file, what = "POS", quiet = TRUE)
-        cache <- get(file, env = .cacheVCF)
-        cat(" done.\n")
+    cache <- ls(env = .cacheVCF, all.names = TRUE)
+    if (! file %in% cache) {
+        if (!quiet) cat("File apparently not yet accessed:\n")
+        info <- VCFlociinfo(file, what = "POS", quiet = quiet)
     }
+    cache <- get(file, env = .cacheVCF)
 
     nChunks <- nrow(cache)
     obj <- vector("list", nLoci)
     locnms <- character(nLoci)
+
+    if (GZ) open(f)
 
     ii <- 0L # number of loci read
     for (k in seq_len(nChunks)) {
@@ -78,7 +73,7 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
         }
     }
     if (GZ) close(f)
-    if (!quiet) cat("\rReading", ii, "loci.\nDone\n")
+    if (!quiet) cat("\rReading", ii, "loci.\nDone.\n")
 
     names(obj) <- locnms
     class(obj) <- c("loci", "data.frame")

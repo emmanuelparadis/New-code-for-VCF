@@ -82,7 +82,7 @@ VCFlociinfo <- function(file, what = "all", chunck.size = 1e9, quiet = FALSE)
         scanned <- scanned + nY
 
         if (!quiet) {
-            if (GZ) cat("\r", ncycle*chunck.size/1e6, "Mb")
+            if (GZ) cat("\r", scanned/1e6, "Mb")
             else cat("\r", scanned/1e6, "/", sz/1e6, "Mb")
         }
 
