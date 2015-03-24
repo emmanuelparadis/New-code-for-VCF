@@ -1,10 +1,14 @@
 dyn.load("readVCFbin.so")
+.cacheVCF <- new.env()
 
 .VCFconnection <- function(file)
 {
-    if (length(grep("\\.vcf$", file))) return(file)
-    if (length(grep("\\.vcf.gz$", file))) return(gzcon(gzfile(file)))
-    stop("file name does not end with '.vcf' or '.vcf.gz'")
+    f <- if (length(grep("\\.gz$", file)))
+             gzcon(gzfile(file)) else file
+    x <- readChar(f, 16L, TRUE)
+    if (!identical(x, "##fileformat=VCF"))
+        stop("file apparently not in VCF format")
+    f
 }
 
 .getMETAvcf <- function(x, position.only = FALSE)
@@ -30,16 +34,10 @@ VCFlabels <- function(file)
 {
     f <- .VCFconnection(file)
     x <- readBin(f, "raw", 1e5)
-    strsplit(.getMETAvcf(x)$LABELS, "\t")[[1]]
+    strsplit(.getMETAvcf(x)$LABELS, "\t")[[1]][-(1:9)]
 }
 
-chr1 <- "../Téléchargements/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz"
-chr22 <- "../Téléchargements/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz"
-titi <- "/media/paradis/12674652-3312-4cf3-9e96-3b970feca8c6/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf"
-fl <- "tmp.vcf.gz"
-fl2 <- "tmp.vcf"
-
-VCFlociinfo <- function(file, what = "POS", chunck.size = 1e9)
+VCFlociinfo <- function(file, what = "all", chunck.size = 1e9, quiet = FALSE)
 {
     f <- .VCFconnection(file)
     GZ <- if (inherits(f, "connection")) TRUE else FALSE
@@ -52,50 +50,78 @@ VCFlociinfo <- function(file, what = "POS", chunck.size = 1e9)
 
     obj <- vector("list", 9L)
 
-    if (GZ) {
-        open(f)
-    } else {
+    if (GZ) open(f) else {
         sz <- file.info(file)$size
         if (is.na(sz))
             stop(paste("cannot find information on file", sQuote(file)))
         left.to.scan <- sz
-        scanned <- 0 # !!! NOT integer please ;)
     }
 
-    headerFound <- FALSE
-    cat("Scanning file", file, "\n")
+    if (!quiet) cat("Scanning file", file, "\n")
+    scanned <- 0 # NOT integer
     ncycle <- 0L
+    FROM <- integer()
+    TO <- integer()
+    CHUNCK.SIZES <- numeric()
 
     repeat {
         if (!GZ) {
             if (left.to.scan > chunck.size) {
-                ck <- chunck.size
-                left.to.scan <- left.to.scan - ck
+                left.to.scan <- left.to.scan - chunck.size
             } else {
-                ck <- left.to.scan
+                chunck.size <- left.to.scan
                 left.to.scan <- 0L
             }
-            Y <- .Call("read_bin_pegas", file, ck, scanned)
-            scanned <- scanned + ck
+            Y <- .Call("read_bin_pegas", file, chunck.size, scanned)
         } else {
             Y <- readBin(f, "raw", chunck.size)
             if (!length(Y)) break
         }
 
-        if (GZ) cat("\r", ncycle*1e3, "Mb")
-        else cat("\r", ncycle*1e3, "/", sz/1e6, "Mb")
+        nY <- length(Y)
+        scanned <- scanned + nY
+
+        if (!quiet) {
+            if (GZ) cat("\r", ncycle*chunck.size/1e6, "Mb")
+            else cat("\r", scanned/1e6, "/", sz/1e6, "Mb")
+        }
 
         ncycle <- ncycle + 1L
 
-        if (!headerFound) {
+        if (ncycle == 1) {
             meta <- .getMETAvcf(Y)
             skip <- meta$position - 3L
             nCol <- length(gregexpr("\t", meta$LABELS)[[1]]) + 1L
-            headerFound <- TRUE
         } else skip <- 0L
 
         hop <- 2L * nCol - 1L
         EOL <- .Call("findEOL_C", Y, skip, hop) # can multiply 'hop' by 2 if diploid
+
+        ck <- nY
+        if (exists("trail", inherits = FALSE)) {
+            x <- c(trail, Y[1:EOL[1L]])
+            for (i in what) {
+                lib <- if (i %in% c(2, 6)) "extract_POS" else "extract_REF"
+                tmp <- .Call(lib, x, c(1L, length(trail)), i - 1L)
+                obj[[i]] <- c(obj[[i]], tmp)
+            }
+            ck <- ck + length(trail)
+            rm(trail)
+            extra.locus <- 1L
+        } else extra.locus <- 0L
+
+        nEOL <- length(EOL)
+        if (EOL[nEOL] != nY) {
+            trail <- Y[(EOL[nEOL] + 1L):nY]
+            ck <- ck - length(trail)
+        }
+
+        from <- if (ncycle == 1) 1L else TO[ncycle - 1L] + 1L
+        to <- from + nEOL - 2L + extra.locus
+        #if (exists("trail", inherits = FALSE)) to <- to + 1L
+        FROM <- c(FROM, from)
+        TO <- c(TO, to)
+        CHUNCK.SIZES <- c(CHUNCK.SIZES, ck)
 
         ## we assume there are no extra blank line!
 
@@ -109,10 +135,53 @@ VCFlociinfo <- function(file, what = "POS", chunck.size = 1e9)
     }
 
     if (GZ) close(f)
-    else cat("\r", scanned/1e6, "/", sz/1e6, "Mb")
-    cat("\nDone.\n")
+    else if (!quiet) cat("\r", scanned/1e6, "/", sz/1e6, "Mb")
+    if (!quiet) cat("\nDone.\n")
+
+    assign(file, data.frame(FROM = FROM, TO = TO, CHUNCK.SIZES = CHUNCK.SIZES),
+           envir = .cacheVCF)
 
     names(obj) <- FIELDS
     obj <- obj[!sapply(obj, is.null)]
-    as.data.frame(obj, stringsAsFactors = FALSE)
+    obj <- as.data.frame(obj, stringsAsFactors = FALSE)
+    class(obj) <- c("VCFinfo", "data.frame")
+    obj
+}
+
+print.VCFinfo <- function(x, ...)
+{
+    n <- length(x[[1]])
+    if (n < 10) print(as.data.frame(x)) else {
+        x <- x[c(1:5, (n - 4):n), , drop = FALSE]
+        x <- apply(x, 2, as.character)
+        x <- as.data.frame(x, stringsAsFactors = FALSE)
+        x[5:6, ] <- ""
+        row.names(x) <- c(1:4, "....", ".....", (n - 3):n)
+        print(x)
+    }
+}
+
+is.snp <- function(x, ...) UseMethod("is.snp")
+
+is.snp.VCFinfo <- function(x, ...)
+{
+    REF <- x$REF
+    if (is.null(REF)) stop("no REF allele(s)")
+    ALT <- x$ALT
+    if (is.null(ALT)) stop("no ALT allele(s)")
+    nchar(REF) == 1 & nchar(ALT) == 1
+}
+
+rangePOS <- function(x, from, to)
+{
+    POS <- x$POS
+    if (is.null(POS)) stop("no POS(isition)")
+    which(from <= POS & POS <= to)
+}
+
+selectQUAL <- function(x, threshold = 50)
+{
+    QUAL <- x$QUAL
+    if (is.null(QUAL)) stop("no QUAL(ility)")
+    which(QUAL >= threshold)
 }

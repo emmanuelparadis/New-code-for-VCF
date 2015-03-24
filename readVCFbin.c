@@ -13,8 +13,8 @@ SEXP read_bin_pegas(SEXP FILENAME, SEXP SIZE, SEXP SKIP)
     unsigned char *p;
 
     PROTECT(FILENAME = coerceVector(FILENAME, STRSXP));
-    PROTECT(SIZE = coerceVector(SIZE, INTSXP)); // OK to have INT cause biggest chunk is 1e9
-    PROTECT(SKIP = coerceVector(SKIP, REALSXP)); // !!! MUST be REAL cause file size can be > 2 Gb
+    PROTECT(SIZE = coerceVector(SIZE, INTSXP)); /* OK to have INT cause biggest chunk is 1e9 */
+    PROTECT(SKIP = coerceVector(SKIP, REALSXP)); /* must be REAL cause file size can be > 2 Gb */
     filename = CHAR(STRING_ELT(FILENAME, 0));
     sz = INTEGER(SIZE)[0];
     skip = REAL(SKIP)[0];
@@ -161,5 +161,112 @@ SEXP extract_REF(SEXP x, SEXP EOL, SEXP nTABtoSKIP)
     }
 
     UNPROTECT(4);
+    return res;
+}
+
+SEXP build_factor_loci(SEXP x, SEXP N)
+{
+    int Nind, n, i, i1, i2, j, k, nunique, done, a, *p, *buf;
+    SEXP res, cat, locnms, REF, ALT, levels;
+    unsigned char *xr;
+    char str[1000];
+
+    PROTECT(x = coerceVector(x, RAWSXP));
+    PROTECT(N = coerceVector(N, INTSXP));
+    Nind = INTEGER(N)[0];
+    PROTECT(cat = allocVector(INTSXP, Nind));
+    p = INTEGER(cat);
+    PROTECT(locnms = allocVector(STRSXP, 1));
+    PROTECT(REF = allocVector(STRSXP, 1));
+    PROTECT(ALT = allocVector(STRSXP, 1));
+    xr = RAW(x);
+    n = LENGTH(x);
+
+    i = 0;
+    while (xr[i] != 0x09) i++; /* 1st TAB */
+    i++;
+    while (xr[i] != 0x09) i++; /* 2nd TAB */
+    a = ++i;
+    while (xr[i] != 0x09) i++; /* 3rd TAB */
+    extract_substring(xr, a, i - 1, str);
+    SET_STRING_ELT(locnms, 0, mkChar(str));
+    a = ++i;
+    while (xr[i] != 0x09) i++; /* 4th TAB */
+    extract_substring(xr, a, i - 1, str);
+    SET_STRING_ELT(REF, 0, mkChar(str));
+    a = ++i;
+    while (xr[i] != 0x09) i++; /* 5th TAB */
+    extract_substring(xr, a, i - 1, str);
+    SET_STRING_ELT(ALT, 0, mkChar(str));
+    i++;
+    while (xr[i] != 0x09) i++; /* 6th TAB */
+    i++;
+    while (xr[i] != 0x09) i++; /* 7th TAB */
+    i++;
+    while (xr[i] != 0x09) i++; /* 8th TAB */
+    i++;
+    while (xr[i] != 0x09) i++; /* 9th TAB */
+    i++;
+
+    nunique = 1;
+    buf = (int*)R_alloc(Nind, sizeof(int));
+    buf[0] = i;
+    p[0] = 1;
+    for (j = 1; j < Nind - 1; j++) { /* start at the 2nd individual */
+	while (xr[i] != 0x09) i++;
+	i++;
+	done = 0;
+	for (k = 0; k < nunique; k++) {
+	    for (i1 = i, i2 = buf[k]; ; i1++, i2++) {
+		if (xr[i1] != xr[i2]) break;
+		if (xr[i1] != 0x09) continue;
+		p[j] = k + 1;
+		done = 1;
+		break;
+	    }
+	    if (done) break;
+	}
+	if (!done) {
+	    buf[nunique] = i;
+	    p[j] = ++nunique;
+	}
+	i = i1;
+    }
+
+    /* treat the last individual separately */
+    done = 0;
+    for (k = 0; k < nunique; k++) {
+	for (i1 = i + 1, i2 = buf[k]; ; i1++, i2++) {
+	    if (xr[i1] != xr[i2]) break;
+	    if (i1 == n - 1) {
+		p[j] = k + 1;
+		done = 1;
+		break;
+	    }
+	}
+	if (done) break;
+    }
+    if (!done) {
+	buf[nunique] = i;
+	p[j] = ++nunique;
+    }
+
+    PROTECT(levels = allocVector(STRSXP, nunique));
+
+    for (j = 0; j < nunique; j++) {
+	k = a = buf[j];
+	while (xr[k + 1] != 0x09) k++;
+	extract_substring(xr, a, k, str);
+	SET_STRING_ELT(levels, j, mkChar(str));
+    }
+
+    PROTECT(res = allocVector(VECSXP, 5));
+    SET_VECTOR_ELT(res, 0, locnms);
+    SET_VECTOR_ELT(res, 1, REF);
+    SET_VECTOR_ELT(res, 2, ALT);
+    SET_VECTOR_ELT(res, 3, cat);
+    SET_VECTOR_ELT(res, 4, levels);
+
+    UNPROTECT(8);
     return res;
 }
