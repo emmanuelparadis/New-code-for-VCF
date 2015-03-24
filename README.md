@@ -1,6 +1,6 @@
 # New code for reading VCF files
 
-These files provide a new code to handle VCF files. It is still experimental. The new user-level functions are:
+These files provide new code to handle VCF files. The new user-level functions are:
 
 - `VCFheader` extracts the header of a VCF file as a single character string (can be printed in a more friendly way with `cat`).
 
@@ -8,13 +8,13 @@ These files provide a new code to handle VCF files. It is still experimental. Th
 
 - `VCFlociinfo` extracts the information of the loci, by default all nine fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) are read. This returns an object of class "VCFinfo" with a `print` method.
 
-- `is.snp` tests whether a locus is a SNP (this is now a generic function)
+- `is.snp` tests whether a locus is a SNP (this is now a generic function).
 
 - `rangePOS` selects loci within a given range of POSition using an object of class "VCFinfo".
 
 - `selectQUAL` selects loci above a given QUALity using an object of class "VCFinfo".
 
-The function `read.vcf` (already in pegas) has been completely rewritten with a new interface:
+The function `read.vcf` (already in pegas) has been rewritten with a new interface:
 
 ```r
 read.vcf(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
@@ -22,7 +22,7 @@ read.vcf(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 
 By default the first 10,000 loci. An alternative is to use `which.loci` which specifies which loci to read, typically as an output from the above function.
 
-Another new feature is that `read.vcf` can read both compressed (*.gz) or uncompressed files.
+Another new feature is that `read.vcf` (and `VCFlociinfo` too) can read both compressed (*.gz) or uncompressed files.
 
 #### Example (with the chromosome Y from 1000 Genomes):
 
@@ -73,7 +73,7 @@ Allelic data frame: 1233 individuals
                     60505 loci
 ```
 
-And it's a simple matter to read the other loci:
+And it's a simple matter to read the other (non-SNP) loci:
 
 ```r
 > Y <- read.vcf("chrY.vcf", which.loci = which(!SNP))
