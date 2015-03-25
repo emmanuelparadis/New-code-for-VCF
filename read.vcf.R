@@ -30,8 +30,8 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 
     ii <- 0L # number of loci read
     for (k in seq_len(nChunks)) {
-
-        sel <- which(which.loci >= cache$FROM[k] & which.loci <= cache$TO[k])
+        sel <- match(which.loci, cache$FROM[k]:cache$TO[k])
+        sel <- sel[!is.na(sel)]
         if (!length(sel)) next
 
         if (k == 1) {
@@ -40,7 +40,6 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
         } else {
             ck <- cache$CHUNCK.SIZES[k]
             skip <- sum(cache$CHUNCK.SIZES[1L:(k - 1L)])
-            sel <- sel - cache$TO[k - 1L]
         }
 
         Y <- if (GZ) readBin(f, "raw", ck) else .Call("read_bin_pegas", file, ck, skip)
@@ -49,31 +48,33 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 
         for (i in sel) {
             start <- if (i == 1) skip + 1L else EOL[i - 1] + 1L
-            end <- EOL[i] - 1
+            end <- EOL[i] - 1L
             out <- .Call("build_factor_loci", Y[start:end], n)
+            ii <- ii + 1L
             locnms[ii] <- out[[1L]]
             REF <- out[[2L]]
             ALT <- out[[3L]]
-            x <- out[[4L]]
+            geno <- out[[4L]]
             lv <- out[[5L]]
 
             ## substitute the allele names:
-            tmp <- strsplit(ALT, ",")[[1]]
+            tmp <- strsplit(ALT, ",")[[1L]]
             ## we start from last allele in case there are more than 10 alleles...
             for (j in length(tmp):1)
                 lv <- gsub(as.character(j), tmp[j], lv)
             ## ... and we finish with the reference allele:
             lv <- gsub("0", REF, lv)
 
-            attr(x, "levels") <- lv
-            class(x) <- "factor"
-            ii <- ii + 1L
-            obj[[ii]] <- x
-            if (!quiet && !(ii %% 100)) cat("\rReading", ii, "loci")
+            attr(geno, "levels") <- lv
+            class(geno) <- "factor"
+            obj[[ii]] <- geno
+            #if (!quiet && !(ii %% 100))
+                cat("\rReading", ii, "/", nLoci, "loci")
+            ##if (ii == 47193) browser()
         }
     }
     if (GZ) close(f)
-    if (!quiet) cat("\rReading", ii, "loci.\nDone.\n")
+    if (!quiet) cat("\rReading", ii, "/", nLoci, "loci.\nDone.\n")
 
     names(obj) <- locnms
     class(obj) <- c("loci", "data.frame")
