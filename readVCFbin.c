@@ -168,7 +168,7 @@ SEXP build_factor_loci(SEXP x, SEXP N)
 {
     int Nind, n, i, i1, i2, j, k, nunique, done, a, *p, *buf;
     SEXP res, geno, locnms, REF, ALT, levels;
-    unsigned char *xr;
+    unsigned char *xr, RIGHT;
     char str[1000];
 
     PROTECT(x = coerceVector(x, RAWSXP));
@@ -205,6 +205,11 @@ SEXP build_factor_loci(SEXP x, SEXP N)
 	i++;
     }
 
+    /* test if FORMAT == GT, then genotypes are delimited by two TABs,
+       otherwise by a TAB on the left and a colon on the right */
+    if (xr[i - 1] == 0x09 && xr[i - 2] == 0x54 && xr[i - 3] == 0x47 && xr[i - 4] == 0x09) RIGHT = 0x09;
+    else RIGHT = 0x3a;
+
     nunique = 1;
     buf = (int*)R_alloc(Nind, sizeof(int));
     buf[0] = i;
@@ -216,7 +221,7 @@ SEXP build_factor_loci(SEXP x, SEXP N)
 	for (k = 0; k < nunique; k++) {
 	    for (i1 = i, i2 = buf[k]; ; i1++, i2++) {
 		if (xr[i1] != xr[i2]) break;
-		if (xr[i1] != 0x09) continue;
+		if (xr[i1] != RIGHT && xr[i1] != 0x09) continue;
 		p[j] = k + 1;
 		done = 1;
 		break;
@@ -230,13 +235,15 @@ SEXP build_factor_loci(SEXP x, SEXP N)
 	i = i1;
     }
 
+    if (RIGHT == 0x3a) while (xr[i] != 0x09) i++;
+
     /* treat the last individual separately */
     done = 0;
     i++;
     for (k = 0; k < nunique; k++) {
 	for (i1 = i, i2 = buf[k]; ; i1++, i2++) {
 	    if (xr[i1] != xr[i2]) break;
-	    if (i1 == n - 1) {
+	    if (i1 == n - 1 || xr[i1] == RIGHT) {
 		p[j] = k + 1;
 		done = 1;
 		break;
@@ -253,7 +260,7 @@ SEXP build_factor_loci(SEXP x, SEXP N)
 
     for (j = 0; j < nunique; j++) {
 	k = a = buf[j];
-	while (xr[k + 1] != 0x09 && k < n - 1) k++;
+	while (xr[k + 1] != RIGHT && xr[k + 1] != 0x09 && k < n - 1) k++;
 	extract_substring(xr, a, k, str);
 	SET_STRING_ELT(levels, j, mkChar(str));
     }

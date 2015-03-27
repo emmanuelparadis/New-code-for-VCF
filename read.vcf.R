@@ -15,12 +15,15 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
     n <- nCol - 9L
     hop <- 2L * nCol - 1L
 
-    cache <- ls(env = .cacheVCF, all.names = TRUE)
+    cache <- ls(envir = .cacheVCF, all.names = TRUE)
     if (! file %in% cache) {
         if (!quiet) cat("File apparently not yet accessed:\n")
         info <- VCFlociinfo(file, what = "POS", quiet = quiet)
     }
-    cache <- get(file, env = .cacheVCF)
+    cache <- get(file, envir = .cacheVCF)
+
+    FROM <- cache$FROM
+    TO <- cache$TO
 
     nChunks <- nrow(cache)
     obj <- vector("list", nLoci)
@@ -30,19 +33,17 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 
     ii <- 0L # number of loci read
     for (k in seq_len(nChunks)) {
-        sel <- match(which.loci, cache$FROM[k]:cache$TO[k])
+        sel <- match(which.loci, FROM[k]:TO[k])
         sel <- sel[!is.na(sel)]
+        ck <- cache$CHUNCK.SIZES[k]
+        if (GZ) Y <- readBin(f, "raw", ck)
         if (!length(sel)) next
 
-        if (k == 1) {
-            ck <- cache$CHUNCK.SIZES[1L]
-            skip <- 0L
-        } else {
-            ck <- cache$CHUNCK.SIZES[k]
-            skip <- sum(cache$CHUNCK.SIZES[1L:(k - 1L)])
+        if (!GZ) {
+            skip <- if (k == 1) 0L else sum(cache$CHUNCK.SIZES[1L:(k - 1L)])
+            Y <- .Call("read_bin_pegas", file, ck, skip)
         }
 
-        Y <- if (GZ) readBin(f, "raw", ck) else .Call("read_bin_pegas", file, ck, skip)
         skip <- if (k == 1) meta$position else 0L
         EOL <- .Call("findEOL_C", Y, skip, hop) # can multiply 'hop' by 2 if diploid
 
@@ -68,17 +69,21 @@ read.vcf <- function(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
             attr(geno, "levels") <- lv
             class(geno) <- "factor"
             obj[[ii]] <- geno
-            #if (!quiet && !(ii %% 100))
-                cat("\rReading", ii, "/", nLoci, "loci")
-            ##if (ii == 47193) browser()
+            if (!quiet && !(ii %% 100)) cat("\rReading", ii, "/", nLoci, "loci")
         }
     }
     if (GZ) close(f)
-    if (!quiet) cat("\rReading", ii, "/", nLoci, "loci.\nDone.\n")
+    if (!quiet) cat("\rReading", ii, "/", ii, "loci.\nDone.\n")
 
+    i2nLoci <- seq_len(ii)
+
+    if (ii < nLoci) {
+        obj[(ii + 1):nLoci] <- NULL
+        locnms <- locnms[i2nLoci]
+    }
     names(obj) <- locnms
     class(obj) <- c("loci", "data.frame")
-    attr(obj, "locicol") <- 1:nLoci
+    attr(obj, "locicol") <- i2nLoci
     rownames(obj) <- labs[-(1:9)]
     obj
 }
