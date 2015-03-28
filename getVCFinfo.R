@@ -185,3 +185,16 @@ selectQUAL <- function(x, threshold = 50)
     if (is.null(QUAL)) stop("no QUAL(ility)")
     which(QUAL >= threshold)
 }
+
+getINFO <- function(x, what = "DP", as.is = FALSE)
+{
+    INFO <- x$INFO
+    if (is.null(INFO)) stop("no INFO")
+    regexp <- paste0("^.*", what, "=")
+    tmp <- gsub(regexp, "", INFO)
+    tmp <- gsub(";.+$", "", tmp)
+    if (!as.is)
+        if (!all(is.na(as.numeric(tmp[1:10]))))
+            tmp <- as.numeric(tmp)
+    tmp
+}
