@@ -92,5 +92,5 @@ Allelic data frame: 1233 individuals
 
 A lot of things can be done from this (as usual with R). For instance, the help page `?read.vcf` gives code to draw the distribution of mutations along chromosome Y for non-SNP mutations (in red) and SNPs (in blue) for the whole chromosome (first plot) and on a restricted portion (second plot) marked with a dashed square:
 
-(https://github.com/emmanuelparadis/New-code-for-VCF/blob/master/chrY.png)
+![alt text](https://github.com/emmanuelparadis/New-code-for-VCF/blob/master/chrY.png)
 
