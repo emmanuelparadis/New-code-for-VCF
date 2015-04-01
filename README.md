@@ -2,6 +2,8 @@
 
 **UPDATE**: all code has now been included in [pegas](https://github.com/emmanuelparadis/pegas).
 
+See below for some examples.
+
 These functions provide new tools to handle VCF files. The new user-level functions are:
 
 - `VCFheader` extracts the header of a VCF file as a single character string (can be printed in a more friendly way with `cat`).
@@ -90,5 +92,5 @@ Allelic data frame: 1233 individuals
 
 A lot of things can be done from this (as usual with R). For instance, the help page `?read.vcf` gives code to draw the distribution of mutations along chromosome Y for non-SNP mutations (in red) and SNPs (in blue) for the whole chromosome (first plot) and on a restricted portion (second plot) marked with a dashed square:
 
-(https://github.com/emmanuelparadis/New-code-for-VCF/chrY.png)
+(https://github.com/emmanuelparadis/New-code-for-VCF/blob/master/chrY.png)
 
