@@ -1,18 +1,22 @@
 # New code for reading VCF files
 
-These files provide new code to handle VCF files. The new user-level functions are:
+**UPDATE**: all code has now been included in [pegas](https://github.com/emmanuelparadis/pegas).
+
+These functions provide new tools to handle VCF files. The new user-level functions are:
 
 - `VCFheader` extracts the header of a VCF file as a single character string (can be printed in a more friendly way with `cat`).
 
 - `VCFlabels` extracts the labels of the individuals.
 
-- `VCFlociinfo` extracts the information of the loci, by default all nine fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) are read. This returns an object of class "VCFinfo" with a `print` method.
+- `VCFloci` extracts the information of the loci, by default all nine fields (CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, FORMAT) are read. This returns an object of class "VCFinfo" with a `print` method.
 
 - `is.snp` tests whether a locus is a SNP (this is now a generic function).
 
 - `rangePOS` selects loci within a given range of POSition using an object of class "VCFinfo".
 
 - `selectQUAL` selects loci above a given QUALity using an object of class "VCFinfo".
+
+- `getINFO` extracts specific information from the INFO field (by default "DP").
 
 The function `read.vcf` (already in pegas) has been rewritten with a new interface:
 
@@ -22,7 +26,7 @@ read.vcf(file, from = 1, to = 1e4, which.loci = NULL, quiet = FALSE)
 
 By default the first 10,000 loci. An alternative is to use `which.loci` which specifies which loci to read, typically as an output from the above function.
 
-Another new feature is that `read.vcf` (and `VCFlociinfo` too) can read both compressed (*.gz) or uncompressed files.
+Another new feature is that `read.vcf` (and `VCFloci` too) can read both compressed (*.gz) or uncompressed files.
 
 #### Example (with the chromosome Y from 1000 Genomes):
 
@@ -83,4 +87,8 @@ Done
 Allelic data frame: 1233 individuals
                     1537 loci
 ```
+
+A lot of things can be done from this (as usual with R). For instance, the help page `?read.vcf` gives code to draw the distribution of mutations along chromosome Y for non-SNP mutations (in red) and SNPs (in blue) for the whole chromosome (first plot) and on a restricted portion (second plot) marked with a dashed square:
+
+(https://github.com/emmanuelparadis/New-code-for-VCF/chrY.png)
 
